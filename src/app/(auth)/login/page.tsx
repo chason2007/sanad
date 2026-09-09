@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
@@ -11,6 +11,32 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
 export default function LoginPage() {
+  // useSearchParams opts the tree into client-side rendering, so the static
+  // shell needs a boundary or the build cannot prerender this route.
+  return (
+    <Suspense fallback={<LoginSkeleton />}>
+      <LoginForm />
+    </Suspense>
+  );
+}
+
+function LoginSkeleton() {
+  return (
+    <div className="space-y-8">
+      <div className="space-y-2">
+        <div className="h-8 w-32 animate-pulse rounded bg-muted" />
+        <div className="h-4 w-56 animate-pulse rounded bg-muted" />
+      </div>
+      <div className="space-y-4">
+        <div className="h-14 animate-pulse rounded bg-muted" />
+        <div className="h-14 animate-pulse rounded bg-muted" />
+        <div className="h-9 animate-pulse rounded bg-muted" />
+      </div>
+    </div>
+  );
+}
+
+function LoginForm() {
   const router = useRouter();
   const params = useSearchParams();
   const next = params.get('next') || '/';
