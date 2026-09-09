@@ -4,6 +4,10 @@
 
 @layer base {
   :root {
+    /* System stack: no webfont round-trip, and it keeps the build offline-safe. */
+    --font-sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    --font-mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+
     --background: 0 0% 100%;
     --foreground: 222 24% 12%;
     --card: 0 0% 100%;
