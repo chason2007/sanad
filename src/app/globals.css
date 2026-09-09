@@ -1,0 +1,83 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222 24% 12%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 24% 12%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 24% 12%;
+    --primary: 199 89% 26%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 210 20% 96%;
+    --secondary-foreground: 222 24% 18%;
+    --muted: 210 20% 96%;
+    --muted-foreground: 215 16% 44%;
+    --accent: 210 20% 94%;
+    --accent-foreground: 222 24% 18%;
+    --destructive: 0 72% 45%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 214 20% 89%;
+    --input: 214 20% 86%;
+    --ring: 199 89% 32%;
+    --radius: 0.375rem;
+
+    --danger: 0 72% 45%;
+    --danger-soft: 0 80% 96%;
+    --danger-ink: 0 70% 32%;
+    --warn: 32 90% 44%;
+    --warn-soft: 40 92% 94%;
+    --warn-ink: 28 80% 30%;
+    --ok: 154 60% 32%;
+    --ok-soft: 152 55% 95%;
+    --ok-ink: 154 62% 24%;
+  }
+
+  .dark {
+    --background: 222 30% 8%;
+    --foreground: 210 20% 96%;
+    --card: 222 28% 11%;
+    --card-foreground: 210 20% 96%;
+    --popover: 222 28% 11%;
+    --popover-foreground: 210 20% 96%;
+    --primary: 199 80% 52%;
+    --primary-foreground: 222 40% 8%;
+    --secondary: 217 22% 18%;
+    --secondary-foreground: 210 20% 96%;
+    --muted: 217 22% 17%;
+    --muted-foreground: 215 16% 65%;
+    --accent: 217 22% 20%;
+    --accent-foreground: 210 20% 96%;
+    --destructive: 0 62% 52%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 217 20% 22%;
+    --input: 217 20% 26%;
+    --ring: 199 80% 52%;
+
+    --danger: 0 70% 58%;
+    --danger-soft: 0 45% 18%;
+    --danger-ink: 0 80% 82%;
+    --warn: 36 85% 58%;
+    --warn-soft: 34 45% 16%;
+    --warn-ink: 40 90% 78%;
+    --ok: 154 50% 48%;
+    --ok-soft: 154 35% 14%;
+    --ok-ink: 152 55% 76%;
+  }
+
+  * { @apply border-border; }
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'tnum';
+  }
+  /* Tabular numerals everywhere dates and counts live. */
+  table, .tnum { font-variant-numeric: tabular-nums; }
+}
+
+@layer utilities {
+  .row-danger { @apply bg-danger-soft text-danger-ink; }
+  .row-warn { @apply bg-warn-soft text-warn-ink; }
+}
