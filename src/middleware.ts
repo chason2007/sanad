@@ -1,7 +1,13 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
-const PUBLIC_ROUTES = ['/login', '/signup', '/auth/callback', '/auth/confirm'];
+const PUBLIC_ROUTES = [
+  '/login', '/signup', '/auth/callback', '/auth/confirm',
+  // Signed alert-action links. The recipient of a reminder is often not a
+  // Sanad user at all, so these authorise with an HMAC token instead of a
+  // session - see src/lib/alerts/tokens.ts.
+  '/a/',
+];
 
 /**
  * Refreshes the Supabase session cookie on every request and keeps

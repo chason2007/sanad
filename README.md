@@ -226,13 +226,92 @@ right-to-left shaping.
 
 ---
 
+## The alert engine
+
+`POST /api/cron/alerts`, scheduled in `vercel.json` at `0 3 * * *` — 03:00
+UTC, which is 07:00 Gulf Standard Time, so the reminder is in the inbox
+before the UAE working day starts. GST has no daylight saving, so that
+mapping holds year-round. Protected by a bearer token in `CRON_SECRET`;
+Vercel Cron sends it automatically. Both GET and POST work, because Vercel
+invokes crons with GET.
+
+Always dry-run first:
+
+```bash
+curl -X POST -H "Authorization: Bearer $CRON_SECRET"   "$APP_URL/api/cron/alerts?dry_run=true"
+```
+
+It returns the whole plan — what it would send, to whom, the exact subject
+line, what it would escalate, which statuses it would move, and everything
+it skipped with a reason — and writes nothing.
+
+### Ordering, and why it is this way round
+
+The alert row is **INSERTed first** with `delivery_status: 'queued'`, and
+only then is the email sent. The unique index on `(document_id, lead_day,
+channel, recipient_user_id)` is what *claims* the send: if two runs overlap,
+the second insert fails and that run skips.
+
+Sending first and recording afterwards would mean a crash in between
+produces a duplicate on the next run. Being chased twice for the same
+document on the same day is the fastest way to make someone stop reading
+these emails, and then the product is worthless.
+
+The cost of that ordering is a row claimed but never sent if the process
+dies in between. Two sweeps cover it, both bounded by `attempts < 3` and a
+24-hour window so a permanently bad address is not retried nightly forever:
+
+- `queued` with no `sent_at`, older than 15 minutes — the crash case
+- `failed` — the provider was down or rejected it
+
+Retrying those is **not** re-sending: nothing was delivered. `sent_at` is
+only stamped on success, so an undelivered reminder stays visibly
+undelivered.
+
+### Escalation
+
+An alert unacknowledged after 48 hours, on a lead day of 30 or fewer, goes
+to the entity's `escalation_user_id`. Long-horizon reminders (60, 90) are
+deliberately excluded — escalating those trains people to ignore the
+escalation itself. It never escalates to the person who already ignored it,
+and `escalated_at` is stamped even if that send fails, so a broken mailbox
+cannot re-escalate the same alert every night.
+
+### The email links
+
+Both buttons are HMAC-signed, scoped to one alert and one action, and expire
+after 60 days. Signed with `ALERT_LINK_SECRET` (falling back to
+`CRON_SECRET`) — kept separate because rotating it invalidates every link
+already sitting in someone's inbox.
+
+The link opens a page; the page posts. **Acknowledging is never a GET.**
+Corporate mail gateways and Gmail's image proxy fetch every URL in an email
+to scan it, so a GET-to-acknowledge would let a spam filter silently
+acknowledge alerts nobody read — and escalation, the feature that catches a
+reminder being ignored, would quietly stop working. Verified: four GETs of a
+live link acknowledged nothing.
+
+### Verified against live data
+
+| Check | Result |
+|---|---|
+| Missing / wrong bearer token | `401` |
+| Dry run | 1 send (lead day 0), 3 status updates, nothing written |
+| Real run, then re-run | 1 row total; second run skipped `already_sent` |
+| Undelivered retry | attempts 1 → 2 → 3, then stops |
+| `sent_at` on failure | stays `null` |
+| Emailed link, no session | renders the document, thumb-sized actions |
+| GET the link 4× | `acknowledged_at` still null |
+| Tampered token | rejected |
+| Click Acknowledge | stamped, attributed, audited `via: email_link` |
+| Escalation after 50h | goes to the manager, not the person who ignored it |
+| After acknowledgement | escalation stops |
+
 ## Not built yet
 
-Phases 1 and 2 are complete. The alert **send** engine is not part of either
-phase and is the obvious next piece: the `alerts` table, the idempotency
-constraint, per-org lead-day rules, escalation contacts, and notification
-preferences are all in place and unused. What is missing is the daily Vercel
-Cron job that walks the register and sends.
+WhatsApp delivery (the `alert_channel` enum and notification preference
+exist; no provider is wired). A real extraction call has still never run —
+see above.
 
 ---
 
