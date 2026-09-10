@@ -35,7 +35,7 @@ const REGIONS: Record<string, Region> = {
   },
 };
 
-const configured = process.env.NEXT_PUBLIC_SUPABASE_REGION || 'ap-south-1';
+const configured = process.env.NEXT_PUBLIC_SUPABASE_REGION || 'eu-central-1';
 
 export const PRIMARY_REGION: Region =
   REGIONS[configured] ?? {

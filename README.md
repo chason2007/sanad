@@ -19,6 +19,16 @@ cp .env.example .env.local
 
 ### 2. Create a Supabase project
 
+**Region: Frankfurt (`eu-central-1`).** Mumbai is physically closer to the
+UAE and about 75ms faster, but it puts customer data under India's DPDP Act.
+Frankfurt puts it under EU GDPR, which is the regime enterprise buyers and
+their legal teams actually ask about, and it makes cross-border questions
+answerable with an adequacy decision rather than an argument. For a product
+whose buyers are compliance-minded by definition, that is worth the latency.
+
+Supabase cannot move a project between regions - if you need to change it,
+create a new project and re-run the migrations.
+
 Then fill in `.env.local`:
 
 | Variable | Where to find it |
@@ -31,6 +41,8 @@ Then fill in `.env.local`:
 | `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET` | Stripe dashboard |
 | `STRIPE_PRICE_*` | One price ID per plan in `src/lib/plans.ts` |
 | `CRON_SECRET` | Any long random string |
+| `ALERT_LINK_SECRET` | Signs email action links. Falls back to `CRON_SECRET`. |
+| `NEXT_PUBLIC_SUPABASE_REGION` | `eu-central-1`. Shown verbatim in the app and the data export, so keep it truthful. |
 
 ### 3. Apply the schema
 
