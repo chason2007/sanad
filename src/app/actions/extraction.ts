@@ -5,7 +5,7 @@ import { requireWriteAccess } from '@/lib/auth';
 import { createClient } from '@/lib/supabase/server';
 import { recordAudit } from '@/lib/audit';
 import { isValidIsoDate } from '@/lib/dates';
-import { nullifyEmpty, requiredString } from '@/lib/utils';
+import { nullifyEmpty, nullifySelect, requiredString } from '@/lib/utils';
 import { REVIEW_THRESHOLD } from '@/lib/extraction/schema';
 import type { HolderType } from '@/lib/types';
 import type { ActionResult } from '@/app/actions/documents';
@@ -43,7 +43,7 @@ export async function confirmExtraction(formData: FormData): Promise<ActionResul
     if (job.document_id) return { ok: false, error: 'This upload has already been saved.' };
 
     // ---- resolve the holder: existing, new, or none ----
-    let holderId = nullifyEmpty(formData.get('holder_id'));
+    let holderId = nullifySelect(formData.get('holder_id'));
     const newHolderName = nullifyEmpty(formData.get('new_holder_name'));
 
     if (!holderId && newHolderName) {

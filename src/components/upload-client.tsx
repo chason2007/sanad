@@ -20,10 +20,9 @@ import {
   HOLDER_TYPES, HOLDER_TYPE_LABELS,
   type DocumentType, type Entity, type Holder, type Profile,
 } from '@/lib/types';
-import { cn } from '@/lib/utils';
+import { cn, NONE_VALUE } from '@/lib/utils';
 
 const NEW_HOLDER = '__new__';
-const NO_HOLDER = '__none__';
 
 interface ExtractResponse {
   job_id: string;
@@ -260,7 +259,7 @@ function ReviewCard({
       ? holders.find((h) => h.name.trim().toLowerCase() === suggested)
       : undefined;
     if (match) return match.id;
-    return suggested ? NEW_HOLDER : NO_HOLDER;
+    return suggested ? NEW_HOLDER : NONE_VALUE;
   });
 
   const matchedType = documentTypes.find((t) => t.code === result.fields?.document_type_code);
@@ -280,7 +279,7 @@ function ReviewCard({
     const formData = new FormData(event.currentTarget);
     formData.set('job_id', result.job_id);
     formData.set('entity_id', entityId);
-    if (holderChoice !== NEW_HOLDER && holderChoice !== NO_HOLDER) {
+    if (holderChoice !== NEW_HOLDER && holderChoice !== NONE_VALUE) {
       formData.set('holder_id', holderChoice);
     }
 
@@ -348,7 +347,6 @@ function ReviewCard({
                 ))}
               </SelectContent>
             </Select>
-            <input type="hidden" name="document_type_id" value={typeId} />
           </Field>
 
           <Field
@@ -382,7 +380,7 @@ function ReviewCard({
             <Select value={holderChoice} onValueChange={setHolderChoice}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value={NO_HOLDER}>The company itself</SelectItem>
+                <SelectItem value={NONE_VALUE}>The company itself</SelectItem>
                 <SelectItem value={NEW_HOLDER}>
                   Add new{result.fields?.holder_name ? `: ${result.fields.holder_name}` : ''}
                 </SelectItem>

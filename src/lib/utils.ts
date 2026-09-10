@@ -17,3 +17,16 @@ export function requiredString(value: FormDataEntryValue | null | undefined, fie
   if (!out) throw new Error(`${field} is required.`);
   return out;
 }
+
+/**
+ * Radix Select cannot use an empty string as an item value, so "no
+ * selection" options carry a sentinel instead. Anything reading a select
+ * that has one MUST pass the value through here before it reaches the
+ * database, or Postgres is handed the literal "__none__" as a uuid.
+ */
+export const NONE_VALUE = '__none__';
+
+export function nullifySelect(value: FormDataEntryValue | null | undefined): string | null {
+  const out = nullifyEmpty(value);
+  return out === NONE_VALUE ? null : out;
+}

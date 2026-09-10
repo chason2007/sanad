@@ -5,7 +5,7 @@ import { requireWriteAccess, requireSession } from '@/lib/auth';
 import { createClient } from '@/lib/supabase/server';
 import { recordAudit } from '@/lib/audit';
 import { isValidIsoDate } from '@/lib/dates';
-import { nullifyEmpty, requiredString } from '@/lib/utils';
+import { nullifyEmpty, nullifySelect, requiredString } from '@/lib/utils';
 import { canDownloadFiles } from '@/lib/types';
 
 export interface ActionResult {
@@ -60,7 +60,7 @@ export async function createDocument(formData: FormData): Promise<ActionResult> 
       .from('documents')
       .insert({
         entity_id: entityId,
-        holder_id: nullifyEmpty(formData.get('holder_id')),
+        holder_id: nullifySelect(formData.get('holder_id')),
         document_type_id: documentTypeId,
         document_number: nullifyEmpty(formData.get('document_number')),
         issue_date: issueDate,
@@ -216,7 +216,7 @@ export async function updateDocument(formData: FormData): Promise<ActionResult> 
         document_number: nullifyEmpty(formData.get('document_number')),
         issue_date: issueDate,
         expiry_date: expiryDate,
-        holder_id: nullifyEmpty(formData.get('holder_id')),
+        holder_id: nullifySelect(formData.get('holder_id')),
         responsible_user_id: nullifyEmpty(formData.get('responsible_user_id')),
         notes: nullifyEmpty(formData.get('notes')),
         needs_review: false,

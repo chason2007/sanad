@@ -21,9 +21,7 @@ import {
   HOLDER_TYPE_LABELS,
   type DocumentType, type Holder, type Profile, type RegisterRow,
 } from '@/lib/types';
-import { cn } from '@/lib/utils';
-
-const NO_HOLDER = '__none__';
+import { cn, NONE_VALUE } from '@/lib/utils';
 
 interface AlertRecord {
   id: string;
@@ -156,10 +154,10 @@ export function DocumentDetail({
               </div>
               <div className="space-y-1">
                 <Label>Belongs to</Label>
-                <Select name="holder_id" defaultValue={row.holder_id ?? NO_HOLDER} disabled={!canWrite}>
+                <Select name="holder_id" defaultValue={row.holder_id ?? NONE_VALUE} disabled={!canWrite}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value={NO_HOLDER}>The company itself</SelectItem>
+                    <SelectItem value={NONE_VALUE}>The company itself</SelectItem>
                     {holders.map((holder) => (
                       <SelectItem key={holder.id} value={holder.id}>{holder.name}</SelectItem>
                     ))}
