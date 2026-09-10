@@ -384,13 +384,122 @@ skipped as `billing grace`. Day 31 → alerts silenced, org named in
 `silenced_orgs`. Recovered → both resume. Limit at 4/4 → upload refused with
 the upgrade prompt, and no document, job, file or extraction call created.
 
+## Data protection (UAE PDPL)
+
+This app holds passport, visa and Emirates ID scans. The controls below are
+built so that the careless path is impossible rather than merely
+discouraged.
+
+### Files
+
+The bucket is private and **cannot be made public**. A database trigger
+rejects the change, so one careless click in the Supabase dashboard or one
+migration written in a hurry cannot expose every scan at a guessable URL.
+Verified live — a direct superuser `UPDATE storage.buckets SET public = true`
+is refused:
+
+> The documents bucket must stay private: it holds passport and Emirates ID
+> scans. Serve files through short-lived signed URLs instead.
+
+Files are reachable only through signed URLs that expire in **60 seconds**,
+minted server-side after a role check. Viewers cannot download at all —
+enforced in the action *and* in the storage policy.
+
+**Every file view writes to the audit log**, including staged uploads that
+have not become documents yet. That one was a real gap: a passport scan
+could be opened from the upload review screen with no record of it.
+
+### Logging
+
+Nothing raw is ever handed to `console`. Everything goes through
+`lib/privacy.ts`, which redacts before emitting:
+
+- personal fields by name (`holder_name`, `document_number`, `notes`,
+  `file_path`, `raw_response`, …) — a name is personal data whether or not
+  it looks like one
+- patterns anywhere in free text: storage paths, UUIDs, emails, phone
+  numbers, Emirates ID numbers, API keys and JWTs
+- base64 blobs, so an inlined scan cannot be dumped into a log line
+- error stacks, trimmed to four frames and scrubbed
+
+Errors returned to the user are scrubbed too: a storage failure says
+"Could not store that file" rather than echoing an object key containing
+org and document ids.
+
+If a third-party error tracker is ever added, wire it through `log` so it
+inherits the same scrubbing rather than getting its own raw feed.
+
+### Retention
+
+`organizations.data_retention_days` (default 365, floor of 30 enforced by a
+check constraint). A daily job purges superseded documents past it:
+
+| deleted | kept |
+|---|---|
+| the scan file | the document row |
+| extracted PII in `extraction_jobs.raw_response` | dates, type, holder, renewal chain |
+
+An auditor asking what a licence looked like three renewals ago is answered
+by the row. Nobody needs an image of somebody's passport to answer it, and
+keeping it once it has served its purpose is the part you cannot justify.
+
+Retention is keyed off `superseded_at`, **not** `updated_at`. That was a
+bug the live test caught: `updated_at` is maintained by a trigger and moves
+on every edit, so correcting a typo on a document superseded two years ago
+would silently restart its retention clock and the scan would live forever.
+
+Verified live: the bucket went from 1 object to 0, and the row survived with
+its dates intact and `file_path` null.
+
+### Export and erasure
+
+Both built before launch, both self-serve, both owner-only.
+
+**`GET /api/export`** returns a ZIP: every table as JSON, the register as
+CSV, and every stored scan foldered by company. The ZIP writer is
+hand-rolled (`lib/zip.ts`) rather than a dependency — the format is small
+and fully specified, Node ships `crc32` and raw deflate, and fewer third
+parties touching a stream of passport scans is worth a hundred lines.
+Verified by opening the output with Windows `Expand-Archive`: nested
+folders, deflated JSON, stored PDF, exact bytes.
+
+**Delete my organisation** removes storage objects first (Postgres cannot
+reach the object store, and once the rows are gone nothing remembers which
+objects were this tenant's), then every row by cascade, then the auth users.
+The audit log goes too — keeping a trail about a tenant you were asked to
+forget defeats the request.
+
+Guarded three ways: owner only, the organisation name must be typed to
+confirm, and the check runs inside the database function so it holds however
+it is called. Verified live: wrong name refused, non-owner refused, and a
+real erasure removed the org, profile, entity, audit rows and auth user
+while the neighbouring tenant was untouched.
+
+### Where the data physically lives
+
+Documented in `lib/residency.ts` and surfaced at **Settings → Data &
+privacy**, so the answer is in the product rather than in a wiki that drifts.
+It lists the primary region, every subprocessor, what each one sees, and the
+guarantees above. Set `NEXT_PUBLIC_SUPABASE_REGION` to match the deployed
+project.
+
+## Scope: what this product does not do
+
+Every item below will be requested. All of them dilute the product, and the
+answer is no:
+
+payroll · attendance · leave management · e-signature · document generation ·
+government portal submission · mobile apps · chat · an AI assistant
+
+Sanad tracks expiry dates and makes the right person act before the
+deadline. The AI in it reads a date off a scan and then gets out of the way.
+
 ## Not built yet
 
 WhatsApp delivery (the `alert_channel` enum and notification preference
 exist; no provider is wired). A real extraction call has still never run,
-and no email has actually been delivered — `RESEND_API_KEY` is unset.
-
----
+and no email has actually been delivered — `RESEND_API_KEY` and
+`ANTHROPIC_API_KEY` are both unset.
 
 ## Layout
 
@@ -405,7 +514,13 @@ src/
   lib/
     dates.ts      Asia/Dubai. The only source of "today".
     register.ts   counters, filters, sort, CSV - all pure, all tested
+    privacy.ts    PII scrubbing. Nothing reaches console except through it.
+    residency.ts  where data lives, and every subprocessor
+    zip.ts        dependency-free archive writer for the data export
+    billing.ts    entitlements and the degradation order
+    alerts/       planner, tokens, email templates
     extraction/   prompt, schema, sanity checks
+    reports/      monthly one-pager (react-pdf), on-demand report (pdf-lib)
     queries.ts    all register reads
 supabase/migrations/
 tests/

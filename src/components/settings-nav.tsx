@@ -8,6 +8,7 @@ const TABS = [
   { href: '/settings/entities', label: 'Companies' },
   { href: '/settings/users', label: 'People' },
   { href: '/settings/alerts', label: 'Reminders' },
+  { href: '/settings/privacy', label: 'Data & privacy' },
   { href: '/settings/billing', label: 'Billing', ownerOnly: true },
 ];
 

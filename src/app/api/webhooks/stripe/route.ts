@@ -3,6 +3,7 @@ import type Stripe from 'stripe';
 import { getStripe } from '@/lib/stripe';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { planForPriceId, planById } from '@/lib/plans';
+import { log } from '@/lib/privacy';
 import type { OrgStatus } from '@/lib/types';
 
 /**
@@ -36,7 +37,7 @@ export async function POST(request: NextRequest) {
   try {
     event = getStripe().webhooks.constructEvent(rawBody, signature, secret);
   } catch (err) {
-    console.error('[stripe] signature verification failed', err);
+    log.error('stripe', 'signature verification failed', err);
     return NextResponse.json({ error: 'Invalid signature.' }, { status: 400 });
   }
 
@@ -77,7 +78,7 @@ export async function POST(request: NextRequest) {
         break;
     }
   } catch (err) {
-    console.error(`[stripe] handler failed for ${event.type}`, err);
+    log.error('stripe', `handler failed for ${event.type}`, err);
     // 500 so Stripe retries: a dropped subscription update means a customer
     // paying for a plan they cannot use.
     return NextResponse.json({ error: 'Handler failed.' }, { status: 500 });

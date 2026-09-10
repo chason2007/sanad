@@ -43,6 +43,8 @@ export interface Organization {
   trial_ends_at: string | null;
   /** When the org first went past_due/cancelled. Anchors the 30-day grace. */
   delinquent_since: string | null;
+  /** Days a superseded scan is kept before the file and extracted PII are purged. */
+  data_retention_days: number;
   created_at: string;
   updated_at: string;
 }
@@ -120,6 +122,8 @@ export interface DocumentRow {
   status: DocumentStatus;
   notes: string | null;
   superseded_by_id: string | null;
+  /** When the renewal happened. Anchors retention; never moves once set. */
+  superseded_at: string | null;
   needs_review: boolean;
   created_at: string;
   updated_at: string;

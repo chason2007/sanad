@@ -184,7 +184,10 @@ const CSV_COLUMNS: Array<[string, (row: RegisterRow, now: Date) => string]> = [
  */
 function csvCell(value: string): string {
   let out = value ?? '';
-  if (/^[=+\-@\t\r]/.test(out)) out = `'${out}`;
+  // A plain number is not a formula, and prefixing it breaks summing the
+  // column in Excel - which is most of the reason anyone exports a CSV.
+  const isPlainNumber = /^-?\d+(\.\d+)?$/.test(out);
+  if (!isPlainNumber && /^[=+\-@\t\r]/.test(out)) out = `'${out}`;
   if (/[",\n\r]/.test(out)) out = `"${out.replace(/"/g, '""')}"`;
   return out;
 }

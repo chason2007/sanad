@@ -187,18 +187,31 @@ export async function discardExtraction(jobId: string): Promise<ActionResult> {
  */
 export async function getStagedFileUrl(jobId: string): Promise<ActionResult> {
   try {
-    await requireWriteAccess();
+    const session = await requireWriteAccess();
     const supabase = createClient();
 
     const { data: job } = await supabase
-      .from('extraction_jobs').select('file_path').eq('id', jobId).maybeSingle();
+      .from('extraction_jobs').select('file_path, org_id').eq('id', jobId).maybeSingle();
 
     if (!job?.file_path) return { ok: false, error: 'No file is attached to this upload.' };
 
     const { data, error } = await supabase.storage
       .from('documents').createSignedUrl(job.file_path, 60);
 
-    if (error || !data) return { ok: false, error: error?.message ?? 'Could not open that file.' };
+    if (error || !data) return { ok: false, error: 'Could not open that file.' };
+
+    // Every file view is auditable, staged uploads included. This one is a
+    // passport or visa scan that has not become a document row yet, which
+    // makes it easy to forget and no less sensitive.
+    await recordAudit(supabase, {
+      orgId: job.org_id ?? session.organization.id,
+      actorUserId: session.userId,
+      action: 'document.file_downloaded',
+      targetTable: 'extraction_jobs',
+      targetId: jobId,
+      metadata: { staged: true, file_path: job.file_path, expires_in_seconds: 60 },
+    });
+
     return { ok: true, url: data.signedUrl };
   } catch (err) {
     return { ok: false, error: (err as Error).message };

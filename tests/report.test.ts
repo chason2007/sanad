@@ -11,7 +11,7 @@ function row(over: Partial<RegisterRow> & { expiry_date: string }): RegisterRow 
     id: `d-${seq}`, entity_id: 'e-1', holder_id: 'h-1', document_type_id: 't-1',
     document_number: `NO-${seq}`, issue_date: null, file_path: null,
     responsible_user_id: 'u-1', status: 'valid', notes: null,
-    superseded_by_id: null, needs_review: false,
+    superseded_by_id: null, superseded_at: null, needs_review: false,
     created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
     org_id: 'o-1', entity_name: 'Al Noor Contracting LLC',
     holder_name: 'Rajesh Kumar', holder_type: 'employee', holder_identifier: 'EMP-001',

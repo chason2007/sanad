@@ -47,7 +47,9 @@ export async function middleware(request: NextRequest) {
     const { data } = await supabase.auth.getUser();
     user = data.user;
   } catch (err) {
-    console.error('[middleware] auth lookup failed', err);
+    // Middleware runs on the Edge runtime; log only the error name so no
+    // token, cookie or path with an identifier can reach the platform log.
+    console.error('[middleware] auth lookup failed', (err as Error)?.name ?? 'Error');
   }
 
   const { pathname } = request.nextUrl;

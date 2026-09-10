@@ -1,5 +1,6 @@
 import { headers } from 'next/headers';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { log } from '@/lib/privacy';
 
 export type AuditAction =
   | 'org.created'
@@ -63,8 +64,8 @@ export async function recordAudit(
       metadata: params.metadata ?? {},
       ip: clientIp(),
     });
-    if (error) console.error('[audit] insert failed', params.action, error.message);
+    if (error) log.error('audit', `insert failed for ${params.action}`, { error: error.message });
   } catch (err) {
-    console.error('[audit] insert threw', params.action, err);
+    log.error('audit', `insert threw for ${params.action}`, err);
   }
 }

@@ -18,7 +18,7 @@ function row(partial: Partial<RegisterRow> & { expiry_date: string }): RegisterR
     responsible_user_id: 'user-1',
     status: 'valid',
     notes: null,
-    superseded_by_id: null,
+    superseded_by_id: null, superseded_at: null,
     needs_review: false,
     created_at: '2026-01-01T00:00:00Z',
     updated_at: '2026-01-01T00:00:00Z',
@@ -154,5 +154,20 @@ describe('CSV export', () => {
     const csv = toCsv([row({ expiry_date: '2026-09-09', holder_name: 'فاطمة المرزوقي' })], NOW);
     expect(csv.charCodeAt(0)).toBe(0xfeff);
     expect(csv).toContain('فاطمة المرزوقي');
+  });
+});
+
+describe('CSV numeric values', () => {
+  it('does not quote-prefix a plain negative number', () => {
+    // A negative day count is a number, not a formula. Prefixing it breaks
+    // summing the column, which is why people export a CSV at all.
+    const csv = toCsv([row({ expiry_date: '2026-09-02' })], NOW);
+    expect(csv).toContain(',-7,');
+    expect(csv).not.toContain(`'-7`);
+  });
+
+  it('still neutralises a formula that merely starts with a minus', () => {
+    const csv = toCsv([row({ expiry_date: '2026-09-09', notes: '-1+cmd|calc!A1' })], NOW);
+    expect(csv).toContain(`'-1+cmd`);
   });
 });

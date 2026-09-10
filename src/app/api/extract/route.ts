@@ -5,6 +5,7 @@ import { extractDocumentFields } from '@/lib/extraction/extract';
 import { REVIEW_THRESHOLD } from '@/lib/extraction/schema';
 import type { DocumentType } from '@/lib/types';
 import { checkCanAddDocument } from '@/lib/billing-server';
+import { log } from '@/lib/privacy';
 
 export const maxDuration = 60;
 
@@ -88,7 +89,13 @@ export async function POST(request: NextRequest) {
     .upload(key, bytes, { contentType: file.type, upsert: false });
 
   if (uploadError) {
-    return NextResponse.json({ error: `Could not store the file: ${uploadError.message}` }, { status: 500 });
+    // The provider message can echo the object key, which carries org and
+    // document ids. Log it scrubbed; tell the user something useful instead.
+    log.error('upload', 'storage rejected the file', { error: uploadError.message });
+    return NextResponse.json(
+      { error: 'Could not store that file. Please try again.' },
+      { status: 500 },
+    );
   }
 
   const { data: types } = await supabase
