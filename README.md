@@ -506,12 +506,51 @@ government portal submission · mobile apps · chat · an AI assistant
 Sanad tracks expiry dates and makes the right person act before the
 deadline. The AI in it reads a date off a scan and then gets out of the way.
 
+## Extraction: what is and is not verified
+
+No API key has ever been configured, so **the model has never actually read
+a document**. Rather than leave the whole pipeline unverified, everything
+either side of Anthropic's inference is tested against the real SDK pointed
+at a local server (`tests/extraction-wire.test.ts`):
+
+| Verified free | Method |
+|---|---|
+| PDF sent as a base64 `document` block, bytes intact | asserted against the real file |
+| Images sent as `image` blocks with the right media type | request inspection |
+| Document precedes the instruction in the message | request inspection |
+| All valid type codes and `unknown` reach the system prompt | request inspection |
+| Bilingual, day-first and "LATER of the two dates" instructions present | request inspection |
+| Output constrained by a strict JSON schema, `additionalProperties: false` | request inspection |
+| Clean read parsed, confidence preserved | canned response |
+| Swapped issue/expiry caught even at 0.97 self-reported | canned response |
+| Low confidence and `unknown` routed to review | canned response |
+| 429, 500 and unparseable responses fail without blocking the upload | canned response |
+| Unsupported file type refused **without an API call** | asserts no request was made |
+
+That leaves exactly one thing untested: whether the model reads the right
+date off a real scan.
+
+To close it, put a key in `.env.local` and run:
+
+```bash
+node scripts/test-extraction.mjs                    # the synthetic trap fixture
+node scripts/test-extraction.mjs path/to/real.jpg   # a genuine scan
+```
+
+The fixture is built as a deliberate trap — `Issue Date 15/03/2024` and
+`Expiry Date 14/03/2027` side by side, same block, same typeface — and the
+script grades six checks, including that the issue date was *not* read as
+the expiry. It prints the model's own reasoning, self-reported versus
+adjusted confidence, latency and token counts.
+
+Budget: roughly half a cent per document on Sonnet 5. A Starter customer's
+entire 50-document register costs about 4 cents to extract, once.
+
 ## Not built yet
 
 WhatsApp delivery (the `alert_channel` enum and notification preference
-exist; no provider is wired). A real extraction call has still never run,
-and no email has actually been delivered — `RESEND_API_KEY` and
-`ANTHROPIC_API_KEY` are both unset.
+exist; no provider is wired). No email has actually been delivered —
+`RESEND_API_KEY` is unset.
 
 ## Layout
 
