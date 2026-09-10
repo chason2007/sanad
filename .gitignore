@@ -9,3 +9,9 @@ build
 next-env.d.ts
 .DS_Store
 supabase/.temp
+
+# local secret, never commit
+.supabase-db-password.txt
+
+# generated test fixture
+trade-licence-test.pdf

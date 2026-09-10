@@ -42,6 +42,16 @@ npx supabase db push
 Five migrations run in order: schema → RLS → signup/storage → seeded
 document types → staged extractions.
 
+**If port 5432 is blocked** (corporate network, some CI runners), `db push`
+cannot open a Postgres connection. Use the HTTPS fallback instead, which
+applies the same files and records them in the same
+`supabase_migrations.schema_migrations` table, so a later `db push` from an
+unblocked network sees them as already applied:
+
+```bash
+SUPABASE_PROJECT_REF=<ref> SUPABASE_ACCESS_TOKEN=<pat>   node scripts/apply-migrations.mjs        # --dry to preview
+```
+
 ### 4. Configure auth
 
 In the Supabase dashboard:
@@ -90,17 +100,38 @@ own rows, and that it sees nothing of anyone else's:
 
 ### Phase 1 acceptance criteria
 
+All five were re-verified against a live Supabase project (`sanad`,
+ap-south-1), not only against the local test suite.
+
 | Criterion | Status |
 |---|---|
-| Signup → onboarding → holder → upload → correct date → dashboard | Built; **not yet run end to end** (needs a live Supabase) |
-| Two orgs cannot see each other's data by any means | **Verified** — 21 tests against real Postgres |
-| Counters correct for expiring today / tomorrow / expired last week | **Verified** — those exact cases, plus every bucket boundary |
+| Signup → onboarding → holder → upload → correct date → dashboard | **Verified live** — walked end to end in the browser |
+| Two orgs cannot see each other's data by any means | **Verified live through PostgREST**, plus 21 tests against raw Postgres |
+| Counters correct for expiring today / tomorrow / expired last week | **Verified live** — 1 / 2 / 2 / 1 against those exact seeded rows |
 | All dates render in Asia/Dubai regardless of browser timezone | **Verified** — every assertion repeated in 5 timezones either side of Dubai |
-| Files private, signed URLs, 60-second expiry | Built and policy-tested; **signing not yet exercised against live Storage** |
+| Files private, signed URLs, 60-second expiry | **Verified live** — public URL 400, signed URL 200, `exp - iat` exactly 60 |
 
-Nothing has run against a live Supabase yet. Auth as enforced by PostgREST
-(rather than raw Postgres), Storage signed URLs, Stripe webhooks, and a real
-extraction call are all still unexercised.
+### The live isolation test
+
+A second org was created through the real signup RPC, then used to attack the
+first over the REST API with its own valid JWT:
+
+| Attack | Result |
+|---|---|
+| List documents / register / holders | `[]` |
+| Fetch org A's document by its exact id | `[]` |
+| List organizations / profiles | only its own |
+| INSERT with org A's `entity_id` forged into the payload | `42501` RLS violation |
+| UPDATE / DELETE org A's document | `[]` — zero rows |
+| Move its own entity into org A (tenant hop) | `42501` RLS violation |
+
+Org A finished the run with its 4 documents and 5 holders intact and
+untampered. Note that org B's token was issued *before* its profile existed,
+so this also exercised the `auth_org_id()` fallback path rather than the JWT
+fast path.
+
+Still unexercised: a real extraction call (needs `ANTHROPIC_API_KEY`), Resend
+email, and Stripe webhooks.
 
 ---
 
