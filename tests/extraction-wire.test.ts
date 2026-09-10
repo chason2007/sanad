@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { createServer, type Server } from 'node:http';
-import { readFileSync } from 'node:fs';
+import { PDFDocument } from 'pdf-lib';
 
 /**
  * Wire-level extraction tests.
@@ -19,6 +19,12 @@ import { readFileSync } from 'node:fs';
 
 let server: Server;
 let port: number;
+/**
+ * Built in-process rather than read from disk. The suite must not depend on
+ * a gitignored fixture that may or may not exist on a given machine - which
+ * is exactly what broke it once the test data was cleaned out.
+ */
+let pdf: Buffer;
 let lastRequest: any = null;
 let nextResponse: { status: number; body: unknown } = { status: 200, body: {} };
 
@@ -40,6 +46,10 @@ beforeAll(async () => {
 
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   port = (server.address() as any).port;
+
+  const doc = await PDFDocument.create();
+  doc.addPage([595, 842]).drawText('TRADE LICENCE  Expiry Date 14/03/2027', { x: 40, y: 700, size: 12 });
+  pdf = Buffer.from(await doc.save());
 
   process.env.ANTHROPIC_API_KEY = 'sk-ant-test-not-a-real-key';
   process.env.ANTHROPIC_BASE_URL = `http://127.0.0.1:${port}`;
@@ -83,13 +93,9 @@ const TYPES = [
   { code: 'emirates_id', label: 'Emirates ID' },
 ];
 
-async function run(file = 'trade-licence-test.pdf', mediaType = 'application/pdf') {
+async function run(mediaType = 'application/pdf') {
   const { extractDocumentFields } = await import('@/lib/extraction/extract');
-  return extractDocumentFields({
-    data: readFileSync(file),
-    mediaType,
-    documentTypes: TYPES,
-  });
+  return extractDocumentFields({ data: pdf, mediaType, documentTypes: TYPES });
 }
 
 describe('the request we actually put on the wire', () => {
@@ -103,9 +109,10 @@ describe('the request we actually put on the wire', () => {
     expect(doc.source.type).toBe('base64');
     expect(doc.source.media_type).toBe('application/pdf');
     // Round-trips to the real file bytes, not a truncated or re-encoded copy.
-    expect(Buffer.from(doc.source.data, 'base64').subarray(0, 5).toString()).toBe('%PDF-');
-    expect(Buffer.from(doc.source.data, 'base64').length)
-      .toBe(readFileSync('trade-licence-test.pdf').length);
+    const decoded = Buffer.from(doc.source.data, 'base64');
+    expect(decoded.subarray(0, 5).toString()).toBe('%PDF-');
+    expect(decoded.length).toBe(pdf.length);
+    expect(decoded.equals(pdf)).toBe(true);
   });
 
   it('sends an image as an image block with the right media type', async () => {

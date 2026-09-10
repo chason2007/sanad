@@ -46,11 +46,21 @@ export const getSessionContext = cache(async (): Promise<SessionContext | null> 
   };
 });
 
-/** For pages behind the app shell. Sends anonymous users to login. */
+/**
+ * For pages behind the app shell.
+ *
+ * The two failure cases are NOT the same, and treating them the same caused
+ * an infinite bounce: a signed-in user with no organisation was sent to
+ * /login, where the middleware saw a valid session and sent them straight
+ * back here. They go to /onboarding/start to finish signup instead.
+ */
 export async function requireSession(): Promise<SessionContext> {
   const session = await getSessionContext();
-  if (!session) redirect('/login');
-  return session;
+  if (session) return session;
+
+  const supabase = createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  redirect(user ? '/onboarding/start' : '/login');
 }
 
 /** Guard for any mutating server action. Viewers are read-only. */

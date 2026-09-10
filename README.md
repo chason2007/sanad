@@ -80,6 +80,18 @@ In the Supabase dashboard:
 npm run dev
 ```
 
+The database ships empty apart from the 12 seeded global document types.
+The first person to sign up creates the first organisation; there is no
+demo tenant and no fixture data to clear out.
+
+**Keep email confirmation off until SMTP is configured.** Supabase's
+built-in mailer is rate-limited to a handful of messages an hour and is
+meant for testing, so turning confirmation on before wiring a real provider
+makes signup unusable. Once Resend SMTP is set up, switch it on: the
+confirm-then-finish path is built (`/onboarding/start`) and handles a user
+whose signup was interrupted between creating the account and creating the
+organisation.
+
 ---
 
 ## Verification
