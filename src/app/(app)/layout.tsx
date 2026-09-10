@@ -11,10 +11,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const session = await requireSession();
   const supabase = createClient();
 
-  const { count: needsReviewCount } = await supabase
-    .from('documents')
-    .select('id', { count: 'exact', head: true })
-    .eq('needs_review', true);
+  const [{ count: needsReviewCount }, { count: documentCount }] = await Promise.all([
+    supabase.from('documents').select('id', { count: 'exact', head: true }).eq('needs_review', true),
+    supabase.from('documents').select('id', { count: 'exact', head: true })
+      .not('status', 'in', '("archived")'),
+  ]);
 
   return (
     <div className="flex min-h-screen">
@@ -53,9 +54,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         </header>
 
         <TrialBanner
-          status={session.organization.status}
-          trialEndsAt={session.organization.trial_ends_at}
+          organization={session.organization}
           isOwner={session.profile.role === 'owner'}
+          documentCount={documentCount ?? 0}
         />
 
         <main className="flex-1 p-4 lg:p-6">{children}</main>

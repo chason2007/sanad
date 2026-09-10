@@ -8,8 +8,9 @@ import {
 import { renderAlertEmail, renderEscalationEmail, sendEmail } from '@/lib/alerts/email';
 import { alertActionUrl } from '@/lib/alerts/tokens';
 import type {
-  AlertRule, DocumentType, Entity, Profile, RegisterRow,
+  AlertRule, DocumentType, Entity, Organization, Profile, RegisterRow,
 } from '@/lib/types';
+import { entitlementsFor } from '@/lib/billing';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -72,21 +73,39 @@ export async function POST(request: NextRequest) {
   }
 
   // ---- load the world (service role: this job has no user session) ----
-  const [documentsRes, rulesRes, typesRes, profilesRes, entitiesRes] = await Promise.all([
+  const [documentsRes, rulesRes, typesRes, profilesRes, entitiesRes, orgsRes] = await Promise.all([
     supabase.from('document_register').select('*').limit(10_000),
     supabase.from('alert_rules').select('*'),
     supabase.from('document_types').select('id, default_lead_days, renewal_checklist, typical_lead_time_days'),
     supabase.from('profiles').select('*'),
     supabase.from('entities').select('*'),
+    supabase.from('organizations').select('*'),
   ]);
 
-  const firstError = [documentsRes, rulesRes, typesRes, profilesRes, entitiesRes]
+  const firstError = [documentsRes, rulesRes, typesRes, profilesRes, entitiesRes, orgsRes]
     .find((r) => r.error)?.error;
   if (firstError) {
     return NextResponse.json({ error: `Could not load data: ${firstError.message}` }, { status: 500 });
   }
 
-  const documents = (documentsRes.data ?? []) as RegisterRow[];
+  const allDocuments = (documentsRes.data ?? []) as RegisterRow[];
+  const organizations = (orgsRes.data ?? []) as Organization[];
+
+  /**
+   * Billing gate.
+   *
+   * Delinquent organisations keep receiving reminders for 30 days - see
+   * lib/billing.ts. Cutting a compliance alert the day a card fails would
+   * let a visa lapse over a billing problem, so only orgs past the full
+   * grace window are excluded, and they are reported rather than dropped
+   * silently.
+   */
+  const silenced = new Map<string, string>();
+  for (const o of organizations) {
+    const ent = entitlementsFor(o, now);
+    if (!ent.alertsEnabled) silenced.set(o.id, o.name);
+  }
+  const documents = allDocuments.filter((d) => !silenced.has(d.org_id));
   const rules = (rulesRes.data ?? []) as AlertRule[];
   const types = (typesRes.data ?? []) as Array<Pick<DocumentType,
     'id' | 'default_lead_days' | 'renewal_checklist' | 'typical_lead_time_days'>>;
@@ -164,6 +183,7 @@ export async function POST(request: NextRequest) {
       })),
       would_update_status: plan.statusUpdates,
       skipped: [...plan.skipped, ...escalationPlan.skipped],
+      silenced_orgs: [...silenced.values()],
       email_configured: Boolean(process.env.RESEND_API_KEY),
       took_ms: Date.now() - started,
     });
@@ -300,6 +320,7 @@ export async function POST(request: NextRequest) {
     retried_undelivered: retried,
     retry_failures: retryFailures,
     status_updated: statusUpdated,
+    silenced_orgs: [...silenced.values()],
     deferred_to_next_run: deferred,
     skipped: [...plan.skipped, ...escalationPlan.skipped],
     details: { sent, failed, escalated },

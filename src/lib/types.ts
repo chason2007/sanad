@@ -41,6 +41,8 @@ export interface Organization {
   document_limit: number;
   entity_limit: number;
   trial_ends_at: string | null;
+  /** When the org first went past_due/cancelled. Anchors the 30-day grace. */
+  delinquent_since: string | null;
   created_at: string;
   updated_at: string;
 }

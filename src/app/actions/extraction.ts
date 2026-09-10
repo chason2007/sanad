@@ -9,6 +9,7 @@ import { nullifyEmpty, nullifySelect, requiredString } from '@/lib/utils';
 import { REVIEW_THRESHOLD } from '@/lib/extraction/schema';
 import type { HolderType } from '@/lib/types';
 import type { ActionResult } from '@/app/actions/documents';
+import { checkCanAddDocument } from '@/lib/billing-server';
 
 /**
  * Turn a reviewed extraction job into a real document.
@@ -21,6 +22,10 @@ import type { ActionResult } from '@/app/actions/documents';
 export async function confirmExtraction(formData: FormData): Promise<ActionResult> {
   try {
     const session = await requireWriteAccess();
+
+    const limit = await checkCanAddDocument(session);
+    if (!limit.allowed) return { ok: false, error: limit.message };
+
     const supabase = createClient();
 
     const jobId = requiredString(formData.get('job_id'), 'Extraction job');

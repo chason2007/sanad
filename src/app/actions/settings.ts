@@ -8,6 +8,7 @@ import { recordAudit } from '@/lib/audit';
 import { nullifyEmpty, requiredString } from '@/lib/utils';
 import type { UserRole } from '@/lib/types';
 import type { ActionResult } from '@/app/actions/documents';
+import { checkCanAddEntity } from '@/lib/billing-server';
 
 const ROLES: UserRole[] = ['owner', 'admin', 'viewer'];
 
@@ -56,19 +57,10 @@ export async function createEntity(formData: FormData): Promise<ActionResult> {
     const session = await requireWriteAccess();
     const supabase = createClient();
 
-    // Entity limit is a plan boundary, so it is checked before the insert
-    // rather than left to fail on a constraint the user cannot interpret.
-    const { count } = await supabase
-      .from('entities').select('id', { count: 'exact', head: true });
-
-    if ((count ?? 0) >= session.organization.entity_limit) {
-      return {
-        ok: false,
-        error: `Your plan covers ${session.organization.entity_limit} ${
-          session.organization.entity_limit === 1 ? 'company' : 'companies'
-        }. Upgrade to add more.`,
-      };
-    }
+    // Plan boundary, checked before the insert so the user gets a sentence
+    // they can act on instead of a constraint violation.
+    const limit = await checkCanAddEntity(session);
+    if (!limit.allowed) return { ok: false, error: limit.message };
 
     const name = requiredString(formData.get('name'), 'Company name');
 

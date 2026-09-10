@@ -15,3 +15,7 @@ supabase/.temp
 
 # generated test fixture
 trade-licence-test.pdf
+
+# local report preview
+public/preview.pdf
+monthly-report-preview.pdf

@@ -53,6 +53,10 @@ const esc = (value: string | null | undefined): string =>
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 
+const OK_TONE = { bg: '#eaf6f0', ink: '#1c6b4a' };
+const WARN_TONE = { bg: '#fdf3e2', ink: '#8a5a12' };
+const DANGER_TONE = { bg: '#fdecec', ink: '#8c1d1d' };
+
 function urgencyColour(days: number): { bg: string; ink: string; label: string } {
   if (days < 0) return { bg: '#fdecec', ink: '#8c1d1d', label: 'Expired' };
   if (days <= 7) return { bg: '#fdecec', ink: '#8c1d1d', label: 'Urgent' };
@@ -256,6 +260,107 @@ export async function sendEmail(params: {
     if (!res.ok) {
       return { ok: false, error: body?.message || `Resend returned ${res.status}` };
     }
+    return { ok: true, id: body?.id };
+  } catch (err) {
+    return { ok: false, error: (err as Error).message };
+  }
+}
+
+// ---------------------------------------------------------------------
+// Monthly compliance report
+// ---------------------------------------------------------------------
+
+export interface MonthlyReportEmailInput {
+  recipientName: string;
+  organizationName: string;
+  monthLabel: string;
+  entities: Array<{ name: string; compliancePercent: number; expired: number; dueIn60: number }>;
+  appUrl: string;
+}
+
+export function renderMonthlyReportEmail(input: MonthlyReportEmailInput): RenderedEmail {
+  const worst = Math.min(...input.entities.map((e) => e.compliancePercent), 100);
+  const totalExpired = input.entities.reduce((n, e) => n + e.expired, 0);
+
+  const subject =
+    totalExpired > 0
+      ? `${input.monthLabel} compliance: ${totalExpired} document${totalExpired === 1 ? '' : 's'} expired`
+      : `${input.monthLabel} compliance: nothing has lapsed`;
+
+  const tone = worst === 100 ? OK_TONE : worst >= 90 ? WARN_TONE : DANGER_TONE;
+
+  const rows = input.entities.map((e) => `
+    <tr>
+      <td style="padding:7px 0;border-top:1px solid #eef2f5;font-size:14px;">${esc(e.name)}</td>
+      <td style="padding:7px 0;border-top:1px solid #eef2f5;font-size:14px;text-align:right;font-weight:bold;color:${
+        e.compliancePercent === 100 ? '#1c6b4a' : e.compliancePercent >= 90 ? '#8a5a12' : '#8c1d1d'
+      };">${e.compliancePercent}%</td>
+      <td style="padding:7px 0;border-top:1px solid #eef2f5;font-size:13px;text-align:right;color:#5a6673;">${e.expired} expired</td>
+      <td style="padding:7px 0;border-top:1px solid #eef2f5;font-size:13px;text-align:right;color:#5a6673;">${e.dueIn60} due in 60d</td>
+    </tr>`).join('');
+
+  const html = `<!-- Sanad monthly report -->
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f4f6f8;padding:24px 0;">
+<tr><td align="center">
+  <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="width:600px;max-width:100%;background:#ffffff;border:1px solid #e2e8ee;border-radius:10px;font-family:Arial,Helvetica,sans-serif;">
+    <tr><td style="padding:20px 24px 0;">
+      <span style="display:inline-block;padding:5px 11px;border-radius:999px;background:${tone.bg};color:${tone.ink};font-size:12px;font-weight:bold;letter-spacing:.4px;text-transform:uppercase;">${esc(input.monthLabel)}</span>
+    </td></tr>
+    <tr><td style="padding:14px 24px 0;">
+      <div style="font-size:21px;font-weight:bold;color:#131a22;">Compliance report</div>
+      <div style="font-size:15px;color:#5a6673;padding-top:6px;">${esc(input.organizationName)}</div>
+    </td></tr>
+    <tr><td style="padding:18px 24px 0;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">${rows}</table>
+    </td></tr>
+    <tr><td style="padding:18px 24px 0;font-size:13px;color:#5a6673;line-height:1.6;">
+      A one-page PDF for each company is attached.
+      ${totalExpired > 0
+        ? `<strong style="color:#8c1d1d;">${totalExpired} document${totalExpired === 1 ? ' has' : 's have'} already expired</strong> and need attention.`
+        : 'Nothing has lapsed this month.'}
+    </td></tr>
+    <tr><td style="padding:22px 24px 24px;">
+      ${button(`${input.appUrl}/documents?status=expired`, 'Open the register', true)}
+      <div style="border-top:1px solid #eef2f5;margin-top:14px;padding-top:14px;font-size:12px;color:#7b8794;">
+        Sent by Sanad to ${esc(input.recipientName)}. Dates are Asia/Dubai.
+      </div>
+    </td></tr>
+  </table>
+</td></tr></table>`;
+
+  const text = [
+    subject, '',
+    `${input.organizationName} — ${input.monthLabel}`, '',
+    ...input.entities.map((e) => `  ${e.name}: ${e.compliancePercent}% compliant, ${e.expired} expired, ${e.dueIn60} due in 60 days`),
+    '', 'A one-page PDF for each company is attached.',
+    `Register: ${input.appUrl}/documents`, '',
+    'Sent by Sanad. Dates are Asia/Dubai.',
+  ].join('\n');
+
+  return { subject, html, text };
+}
+
+export interface EmailAttachment { filename: string; content: string }
+
+/** Same as sendEmail, with base64 attachments (Resend takes them inline). */
+export async function sendEmailWithAttachments(params: {
+  to: string[]; subject: string; html: string; text: string; attachments: EmailAttachment[];
+}): Promise<SendResult> {
+  const key = process.env.RESEND_API_KEY;
+  if (!key) return { ok: false, error: 'RESEND_API_KEY is not configured' };
+  const from = process.env.ALERT_FROM_EMAIL || 'Sanad <alerts@example.com>';
+
+  try {
+    const res = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        from, to: params.to, subject: params.subject,
+        html: params.html, text: params.text, attachments: params.attachments,
+      }),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) return { ok: false, error: body?.message || `Resend returned ${res.status}` };
     return { ok: true, id: body?.id };
   } catch (err) {
     return { ok: false, error: (err as Error).message };

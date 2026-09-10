@@ -7,6 +7,7 @@ import { recordAudit } from '@/lib/audit';
 import { isValidIsoDate } from '@/lib/dates';
 import { nullifyEmpty, nullifySelect, requiredString } from '@/lib/utils';
 import { canDownloadFiles } from '@/lib/types';
+import { checkCanAddDocument } from '@/lib/billing-server';
 
 export interface ActionResult {
   ok: boolean;
@@ -45,6 +46,11 @@ async function uploadFile(
 export async function createDocument(formData: FormData): Promise<ActionResult> {
   try {
     const session = await requireWriteAccess();
+
+    // Refuse loudly, with the way forward, rather than failing silently.
+    const limit = await checkCanAddDocument(session);
+    if (!limit.allowed) return fail(limit.message!);
+
     const supabase = createClient();
 
     const entityId = requiredString(formData.get('entity_id'), 'Entity');

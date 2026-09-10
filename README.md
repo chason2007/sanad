@@ -307,11 +307,88 @@ live link acknowledged nothing.
 | Escalation after 50h | goes to the manager, not the person who ignored it |
 | After acknowledgement | escalation stops |
 
+## Monthly compliance report
+
+`POST /api/cron/monthly-report`, scheduled `0 3 1 * *` — the 1st at 07:00
+GST. One page per entity, rendered with `@react-pdf/renderer`, emailed as
+PDF attachments to every owner and admin, with a summary table in the body
+so the numbers are readable without opening anything.
+
+Each page carries the compliance percentage, counts by status, everything
+expiring in the next 60 days, and everything already expired.
+
+**One page is enforced, not hoped for.** react-pdf paginates happily, so
+rows are capped by a budget and the overflow is stated honestly (`+ 38 more
+in the register`). Expired rows claim the budget first — they are the ones
+costing money. Rows are a fixed height with text clipped per column, because
+a wrapped cell is a taller row and a taller row silently produces page two.
+There is a test that renders 400 documents, and another with deliberately
+huge names, and both assert exactly one page.
+
+Compliance % is the share of live documents that have **not lapsed** — a
+document due in three weeks still counts as compliant. Counting it against
+the score would make 100% unreachable and the number ignorable.
+
+## Billing
+
+| Plan | AED/month | Entities | Documents |
+|---|---|---|---|
+| Starter | 149 | 1 | 50 |
+| Growth | 399 | 1 | 250 |
+| Multi-entity | 999 | 10 | 2,000 |
+
+Stripe Checkout for all three, plus the Customer Portal for self-serve plan
+changes and card updates. `customer.subscription.updated` and `.deleted`
+sync `organizations.status` and both limits; the webhook verifies its
+signature against the raw body and is the only thing that changes
+entitlements.
+
+Limits are enforced on document and entity creation with a sentence the
+user can act on — never a silent failure:
+
+> You have used all 50 documents on your plan. Upgrade to Growth
+> (AED 399/month) for 250 documents.
+
+The upload route checks the limit **before** storing the file or calling the
+model, so a refused upload costs nothing. It returns `402` and the UI shows
+an amber upgrade prompt rather than a red error, because hitting a plan
+limit is not a mistake the user made.
+
+### When a payment fails, alerts are the last thing to go
+
+```
+day 0   payment fails  ->  creating stops. Reminders keep sending.
+                           Renewing, acknowledging and correcting dates
+                           all still work.
+day 30  grace expires  ->  reminders stop. The register stays readable.
+```
+
+The monthly report stops at day 0 with everything else, because it is a
+management convenience. The reminders are the safety mechanism, so they run
+the full 30 days.
+
+This ordering is deliberate. A lapsed employee visa costs AED 100 a day and
+can cost someone their right to work. Cutting that off because a card
+expired would mean the customer finds out from a fine — and it is simply the
+wrong thing to do. `organizations.delinquent_since` anchors the 30 days,
+maintained by a database trigger so every path that changes status keeps the
+invariant: stamped on entry, never reset by a repeat webhook, cleared the
+moment the org is healthy again.
+
+Maintenance actions are never blocked, even fully lapsed. Stopping someone
+from recording that they *fixed* a compliance problem would keep the alert
+firing and help nobody.
+
+Verified live: `past_due` day 0 → alerts still scan every document, report
+skipped as `billing grace`. Day 31 → alerts silenced, org named in
+`silenced_orgs`. Recovered → both resume. Limit at 4/4 → upload refused with
+the upgrade prompt, and no document, job, file or extraction call created.
+
 ## Not built yet
 
 WhatsApp delivery (the `alert_channel` enum and notification preference
-exist; no provider is wired). A real extraction call has still never run —
-see above.
+exist; no provider is wired). A real extraction call has still never run,
+and no email has actually been delivered — `RESEND_API_KEY` is unset.
 
 ---
 

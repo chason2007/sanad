@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useRef, useState, useTransition } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import {
@@ -44,7 +45,7 @@ interface ExtractResponse {
 
 type Item =
   | { state: 'uploading'; id: string; fileName: string }
-  | { state: 'error'; id: string; fileName: string; message: string }
+  | { state: 'error'; id: string; fileName: string; message: string; upgrade?: boolean }
   | { state: 'ready'; id: string; result: ExtractResponse }
   | { state: 'saved'; id: string; fileName: string; documentId: string };
 
@@ -84,13 +85,18 @@ export function UploadClient({
           const json = await response.json();
 
           if (!response.ok) {
+            // 402 is the plan limit. It is not a failure the user caused, so
+            // it gets its own treatment and a way forward rather than a
+            // red error they cannot act on.
+            const upgrade = response.status === 402;
             setItems((prev) =>
               prev.map((item) =>
                 item.id === id
-                  ? { state: 'error', id, fileName: file.name, message: json.error ?? 'Upload failed.' }
+                  ? { state: 'error', id, fileName: file.name, message: json.error ?? 'Upload failed.', upgrade }
                   : item,
               ),
             );
+            if (upgrade) break; // no point trying the rest of the batch
             continue;
           }
 
@@ -186,6 +192,28 @@ export function UploadClient({
           }
 
           if (item.state === 'error') {
+            if (item.upgrade) {
+              return (
+                <div key={item.id} className="rounded-lg border border-warn/40 bg-warn-soft px-4 py-3 text-sm text-warn-ink">
+                  <p className="flex items-center gap-2 font-medium">
+                    <AlertTriangle className="h-4 w-4 shrink-0" />
+                    {item.fileName} was not saved
+                  </p>
+                  <p className="mt-1.5">{item.message}</p>
+                  <div className="mt-3 flex items-center gap-2">
+                    <Button asChild size="sm">
+                      <Link href="/settings/billing">See plans</Link>
+                    </Button>
+                    <Button
+                      variant="ghost" size="sm"
+                      onClick={() => setItems((prev) => prev.filter((i) => i.id !== item.id))}
+                    >
+                      Dismiss
+                    </Button>
+                  </div>
+                </div>
+              );
+            }
             return (
               <div key={item.id} className="flex items-center gap-2.5 rounded-lg border border-danger/30 bg-danger-soft px-4 py-3 text-sm text-danger-ink">
                 <AlertTriangle className="h-4 w-4 shrink-0" />

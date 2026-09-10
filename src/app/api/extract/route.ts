@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server';
 import { extractDocumentFields } from '@/lib/extraction/extract';
 import { REVIEW_THRESHOLD } from '@/lib/extraction/schema';
 import type { DocumentType } from '@/lib/types';
+import { checkCanAddDocument } from '@/lib/billing-server';
 
 export const maxDuration = 60;
 
@@ -30,6 +31,16 @@ export async function POST(request: NextRequest) {
     session = await requireWriteAccess();
   } catch (err) {
     return NextResponse.json({ error: (err as Error).message }, { status: 403 });
+  }
+
+  // Check the plan limit before storing the file or calling the model -
+  // there is no point paying for an extraction we cannot save.
+  const limit = await checkCanAddDocument(session);
+  if (!limit.allowed) {
+    return NextResponse.json(
+      { error: limit.message, at_limit: limit.atLimit, used: limit.used, limit: limit.limit },
+      { status: 402 },
+    );
   }
 
   const supabase = createClient();
