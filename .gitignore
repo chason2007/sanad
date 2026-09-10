@@ -19,3 +19,7 @@ trade-licence-test.pdf
 # local report preview
 public/preview.pdf
 monthly-report-preview.pdf
+public/demo-report.pdf
+
+# marketing screenshots, not source
+screenshots/
